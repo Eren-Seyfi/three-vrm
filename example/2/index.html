@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Electron.js & VRM Character</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden; /* Taşmaları önler */
+        background: transparent; /* Arka planı şeffaf yapar */
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/",
+          "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3/lib/three-vrm.module.min.js"
+        }
+      }
+    </script>
+
+    <script type="module">
+      import * as THREE from "three";
+      import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+      import { VRMLoaderPlugin } from "@pixiv/three-vrm";
+
+      // Scene, camera, and renderer setup
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(
+        50,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+      const renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+      });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0x000000, 0); // Arka planı şeffaf yapar (0: tam şeffaf)
+      document.body.appendChild(renderer.domElement);
+
+      // Add directional light (güneş benzeri bir ışık)
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 2); // Işık yoğunluğunu artırıyoruz
+      directionalLight.position.set(1, 2, 1); // Yukarıdan aşağıya ışık veriyoruz
+      scene.add(directionalLight);
+
+      // Ekstra Ambient Light ekliyoruz (her yerden gelen ışık)
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); // Her tarafa biraz daha ışık ekliyoruz
+      scene.add(ambientLight);
+
+      // Position the camera
+      camera.position.set(0, 1.5, 5);
+      camera.lookAt(0, 1.0, 0);
+
+      // GLTFLoader for VRM
+      const loader = new GLTFLoader();
+
+      // Install VRM support plugin
+      loader.register((parser) => {
+        return new VRMLoaderPlugin(parser);
+      });
+
+      loader.load(
+        "./character.vrm",
+        (gltf) => {
+          // Retrieve VRM instance from gltf
+          const vrm = gltf.userData.vrm;
+
+          // Görev çubuğu yüksekliğini hesaplayalım (yaklaşık 50px)
+          const taskbarHeight = 50;
+
+          // Pencerenin yüksekliğine göre karakterin ayaklarını görev çubuğunun üstünde konumlandırıyoruz
+          const screenHeight = window.innerHeight;
+
+          // Karakterin ayaklarını tam görev çubuğunun üstüne yerleştiriyoruz
+          const characterOffsetY = (taskbarHeight / screenHeight) * 2; // Yüksekliği normalize ederek Three.js koordinatlarına çeviriyoruz
+
+          // Karakteri sahnede aşağı kaydırıyoruz
+          vrm.scene.position.set(0, -1.5 + characterOffsetY, 0); // Karakteri görev çubuğunun üstünde olacak şekilde kaydırıyoruz
+
+          // Karakterin ölçeğini büyütüyoruz
+          vrm.scene.scale.set(1.5, 1.5, 1.5);
+
+          // Add the loaded VRM character to the scene
+          scene.add(vrm.scene);
+
+          // Start animation loop
+          const animate = function () {
+            requestAnimationFrame(animate);
+            vrm.scene.rotation.y += 0.01;
+            renderer.render(scene, camera);
+          };
+
+          animate();
+        },
+        (progress) => {
+          console.log(
+            "Loading model...",
+            100.0 * (progress.loaded / progress.total),
+            "%"
+          );
+        },
+        (error) => {
+          console.error("Error loading VRM:", error);
+        }
+      );
+
+      // Handle window resize
+      window.addEventListener("resize", () => {
+        const aspectRatio = window.innerWidth / window.innerHeight;
+        camera.aspect = aspectRatio;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    </script>
+  </body>
+</html>

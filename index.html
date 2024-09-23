@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Electron.js & VRM Character with Animations</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden; /* Sayfa taşmalarını gizler ve tam ekran gösterim sağlar */
+        background: transparent; /* Arka planı şeffaf yapar */
+      }
+      canvas {
+        display: block; /* Canvas elemanını blok yapar (tam ekran kullanım için) */
+      }
+    </style>
+  </head>
+  <body>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/",
+          "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3/lib/three-vrm.module.min.js"
+        }
+      }
+    </script>
+
+    <script type="module">
+      import * as THREE from "three"; // Three.js ana kütüphanesini yükler
+      import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js"; // GLTF dosyalarını yüklemek için loader
+      import { VRMLoaderPlugin } from "@pixiv/three-vrm"; // VRM dosyaları için VRMLoader eklentisi
+
+      // Sahne (scene), kamera ve render ayarları
+      const scene = new THREE.Scene(); // Sahneyi oluşturuyoruz
+      const camera = new THREE.PerspectiveCamera(
+        50, // Kameranın açısını belirler
+        window.innerWidth / window.innerHeight, // Kameranın genişlik/yükseklik oranını ayarlar
+        0.1, // Yakınlık mesafesi (kamera nereye kadar gösterir)
+        1000 // Uzaklık mesafesi (kamera ne kadar uzağı görebilir)
+      );
+      const renderer = new THREE.WebGLRenderer({
+        antialias: true, // Kenar yumuşatma
+        alpha: true, // Arka planı şeffaf yapar
+      });
+      renderer.setSize(window.innerWidth, window.innerHeight); // Render boyutunu pencere boyutuna ayarlar
+      renderer.setClearColor(0x000000, 0); // Arka planı tamamen şeffaf yapar (0: tam şeffaf)
+      document.body.appendChild(renderer.domElement); // Canvas'ı body içine ekler
+
+      // Işık ekliyoruz (Güneş gibi bir ışık)
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 2); // Yönlü ışık (şiddet: 2)
+      directionalLight.position.set(1, 2, 1); // Işığı yukarıdan verecek şekilde pozisyonluyoruz
+      scene.add(directionalLight); // Işığı sahneye ekliyoruz
+
+      // Ekstra Ambient Light (her yerden gelen ışık)
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); // Ortam ışığı (şiddet: 0.8)
+      scene.add(ambientLight); // Ambient ışığı sahneye ekliyoruz
+
+      // Kamerayı konumlandırıyoruz
+      camera.position.set(0, 1.5, 5); // Kamerayı biraz yukarıdan sahneye bakacak şekilde ayarlıyoruz
+      camera.lookAt(0, 1.0, 0); // Kameranın nereye bakacağını ayarlıyoruz
+
+      // VRM karakteri yüklemek için GLTFLoader kullanıyoruz
+      const loader = new GLTFLoader();
+
+      // VRM desteğini etkinleştiriyoruz
+      loader.register((parser) => {
+        return new VRMLoaderPlugin(parser); // VRM modelini yüklemek için GLTFLoader'a eklenti yüklüyoruz
+      });
+
+      loader.load(
+        "./character.vrm", // Karakter modelinin dosya yolu
+        (gltf) => {
+          const vrm = gltf.userData.vrm; // Yüklenen VRM verisi
+
+          // Pencerenin yüksekliğine göre karakterin ayaklarını doğru yerleştiriyoruz
+          const taskbarHeight = 50; // Yaklaşık görev çubuğu yüksekliği
+          const screenHeight = window.innerHeight; // Ekran yüksekliği
+          const characterOffsetY = (taskbarHeight / screenHeight) * 2; // Karakteri doğru konumlandırmak için offset
+
+          vrm.scene.position.set(0, -1.5 + characterOffsetY, 0); // Karakteri sahnede aşağı kaydırıyoruz
+          vrm.scene.scale.set(1.5, 1.5, 1.5); // Karakterin boyutunu artırıyoruz
+
+          scene.add(vrm.scene); // VRM karakterini sahneye ekliyoruz
+
+          // Animasyon döngüsünü başlatıyoruz
+          const animate = function () {
+            requestAnimationFrame(animate); // Sürekli animasyon döngüsü
+            vrm.scene.rotation.y += 0.01; // Karakteri döndürme hareketi
+            renderer.render(scene, camera); // Sahneyi render ediyoruz
+          };
+
+          animate(); // Animasyonu çalıştır
+        },
+        (progress) => {
+          console.log(
+            "Model yükleniyor...",
+            100.0 * (progress.loaded / progress.total),
+            "%" // Yükleme ilerlemesini göster
+          );
+        },
+        (error) => {
+          console.error("VRM modeli yüklenirken hata oluştu:", error); // Hata durumunu konsola yaz
+        }
+      );
+
+      // Pencere boyutlandırıldığında tekrar ayarları güncellemek için event listener ekliyoruz
+      window.addEventListener("resize", () => {
+        const aspectRatio = window.innerWidth / window.innerHeight; // Yeni genişlik/yükseklik oranını hesapla
+        camera.aspect = aspectRatio; // Kamerayı yeniden boyutlandır
+        camera.updateProjectionMatrix(); // Kamera projeksiyon matrisini güncelle
+        renderer.setSize(window.innerWidth, window.innerHeight); // Renderer'ı yeniden boyutlandır
+      });
+    </script>
+  </body>
+</html>
